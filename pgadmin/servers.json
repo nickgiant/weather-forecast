@@ -1,0 +1,1 @@
+{"Servers":{"1":{"Name":"Weather DB","Group":"Servers","Host":"db","Port":5432,"MaintenanceDB":"weather","Username":"app","SSLMode":"disable"}}}

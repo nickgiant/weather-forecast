@@ -1,0 +1,4 @@
+SHELL=/bin/sh
+0 11 * * * root . /etc/environment; /usr/local/bin/php /var/www/html/cron/fetch_hourly_forecast.php >> /proc/1/fd/1 2>&1
+
+0 10 * * * root . /etc/environment; /usr/local/bin/php /var/www/html/cron/fetch_daily_forecast.php >> /proc/1/fd/1 2>&1

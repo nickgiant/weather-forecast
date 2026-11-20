@@ -1,0 +1,83 @@
+name: weather
+
+x-tz: &tz
+  TZ: ${LOCAL_TZ:-Europe/Athens}
+  LOCAL_TZ: ${LOCAL_TZ:-Europe/Athens}
+
+x-db-env: &db-env
+  <<: *tz
+  DB_HOST: db
+  DB_NAME: weather
+  DB_USER: app
+  DB_PASS: ${DB_PASS:-change_me}
+  WEATHER_API_KEY: ${WEATHER_API_KEY}
+
+services:
+  db:
+    image: timescale/timescaledb-ha:pg17
+    restart: unless-stopped
+    environment:
+      <<: *tz
+      PGTZ: ${LOCAL_TZ:-Europe/Athens}
+      POSTGRES_DB: weather
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${DB_PASS:-change_me}
+    command: >
+      postgres
+      -c shared_preload_libraries=timescaledb,pg_cron
+      -c cron.database_name=weather
+      -c cron.timezone=${LOCAL_TZ:-Europe/Athens}
+      -c timezone=${LOCAL_TZ:-Europe/Athens}
+      -c log_timezone=${LOCAL_TZ:-Europe/Athens}
+    volumes:
+      - pgdata:/home/postgres/pgdata
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d weather"]
+      interval: 10s
+      retries: 5
+
+  web:
+    build: ./apache-php
+    image: weather-php
+    restart: unless-stopped
+    environment: *db-env
+    volumes:
+      - ./app:/var/www/html
+    ports:
+      - "8080:80"
+    depends_on:
+      db: { condition: service_healthy }
+
+  cron:
+    image: weather-php
+    restart: unless-stopped
+    environment: *db-env
+    volumes:
+      - ./app:/var/www/html
+    command: ["sh", "-c", "ln -snf /usr/share/zoneinfo/$$TZ /etc/localtime && echo $$TZ > /etc/timezone && printenv | grep -E '^(DB_|TZ|LOCAL_TZ|WEATHER_)' >> /etc/environment && cron -f"]
+    depends_on:
+      web: { condition: service_started }
+      db: { condition: service_healthy }
+
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    environment:
+      <<: *tz
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASS:-change_me}
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    ports:
+      - "127.0.0.1:5050:80"
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  pgadmin:
